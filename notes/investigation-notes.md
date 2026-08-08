@@ -2,9 +2,9 @@
 
 ## Lab Summary
 
-This investigation focused on reviewing AWS Identity and Access Management (IAM) configuration and identifying permission restrictions within the AWS Academy environment.
+This investigation focused on reviewing the AWS IAM environment and analyzing an access-denied condition encountered while attempting to access CloudTrail Event History.
 
-The investigation examined the IAM Dashboard, IAM users, IAM user groups, IAM roles, IAM policies, and a permission-denied CloudTrail operation. The investigation also reviewed the permissions defined in the `AccessAnalyzerServiceRolePolicy` policy to understand how IAM policies control access to AWS services and actions.
+The investigation examined the IAM Dashboard, IAM Users, IAM User Groups, available IAM policies, and the specific `AccessDeniedException` returned for the `cloudtrail:LookupEvents` operation.
 
 ---
 
@@ -12,25 +12,33 @@ The investigation examined the IAM Dashboard, IAM users, IAM user groups, IAM ro
 
 1. Open the AWS IAM console.
 2. Review the IAM Dashboard.
-3. Examine IAM users.
-4. Examine IAM user groups.
-5. Review available IAM roles and policies.
-6. Inspect an IAM policy and its permissions.
-7. Attempt to review CloudTrail event history.
-8. Analyze the resulting `AccessDeniedException`.
-9. Identify the policy responsible for the explicit deny.
-10. Correlate the IAM configuration with the permission failure.
-11. Document the findings.
+3. Examine IAM Users.
+4. Examine IAM User Groups.
+5. Review available IAM policies.
+6. Inspect the `AccessAnalyzerServiceRolePolicy`.
+7. Attempt to access CloudTrail Event History.
+8. Analyze the `AccessDeniedException`.
+9. Identify the requesting IAM role.
+10. Identify the denied AWS API action.
+11. Identify the policy responsible for the explicit deny.
+12. Correlate the IAM findings with the CloudTrail access failure.
+13. Document the investigation findings.
 
 ---
 
 ## Investigation Scenario
 
-The AWS Academy environment was investigated to understand how IAM controls access to AWS services and how permission restrictions appear during security investigations.
+While working with AWS cloud monitoring and audit services, an attempt was made to access CloudTrail Event History.
 
-During the investigation, an attempt to access CloudTrail Event History resulted in an `AccessDeniedException`. The error indicated that the current AWSLabsUser role was explicitly denied permission to perform the `cloudtrail:LookupEvents` action by an identity-based policy named `RegionPinningPolicy`.
+The operation returned an `AccessDeniedException`, indicating that the current AWS Academy identity was not authorized to perform:
 
-The IAM environment was then reviewed to understand the available identities, groups, roles, and policies and to examine how permissions were defined.
+`cloudtrail:LookupEvents`
+
+The error also identified an explicit deny associated with:
+
+`RegionPinningPolicy`
+
+The investigation therefore shifted toward IAM to determine what identities, roles, policies, and permissions existed in the AWS account.
 
 ---
 
@@ -38,9 +46,18 @@ The IAM environment was then reviewed to understand the available identities, gr
 
 ### Evidence 1 – IAM Dashboard
 
-The IAM Dashboard displayed the resources available in the AWS account.
+Collected:
 
-Observed resources:
+- IAM Dashboard
+- Account resource information
+- IAM role count
+- IAM policy count
+- IAM user count
+- IAM user group count
+
+Finding:
+
+The IAM Dashboard showed:
 
 - User groups: 0
 - Users: 0
@@ -48,132 +65,255 @@ Observed resources:
 - Policies: 5
 - Identity providers: 0
 
-The dashboard also displayed the AWS account information and the available IAM Policy Simulator.
-
-Finding:
-
-The account contained no IAM users or user groups, while multiple IAM roles and policies were available. This indicates that the AWS Academy environment primarily relied on IAM roles for access.
+This indicated that the lab environment relied primarily on IAM roles rather than IAM users.
 
 ---
 
 ### Evidence 2 – IAM Users
 
-The IAM Users section was examined.
+Collected:
 
-Observed result:
-
-`IAM users (0)`
-
-The page displayed:
-
-`No resources to display`
-
-The available columns included:
-
-- User name
-- Path
-- Groups
-- Last activity
-- MFA
-- Password age
+`IAM → Users`
 
 Finding:
 
-No IAM users were configured in the account.
+The IAM Users page showed:
 
-This is important because IAM users normally represent identities with long-term credentials. The absence of IAM users indicates that the lab environment was using role-based access rather than individually created IAM users.
+`IAM users (0)`
+
+and:
+
+`No resources to display`
+
+This confirmed that no IAM users were configured in the AWS Academy account.
 
 ---
 
 ### Evidence 3 – IAM User Groups
 
-The IAM User Groups section was reviewed.
+Collected:
 
-Observed result:
+`IAM → User groups`
+
+Finding:
+
+The IAM User Groups page showed:
 
 `IAM user groups (0)`
 
-The page displayed:
+and:
 
 `No resources to display`
 
-The page also explained that an IAM user group is a collection of IAM users used to specify permissions for multiple users.
-
-Finding:
-
-No IAM user groups were configured.
-
-Because no IAM users were present, there were also no user groups available to centrally manage permissions for those users.
+This confirmed that no IAM user groups were configured in the environment.
 
 ---
 
-### Evidence 4 – IAM Roles
+### Evidence 4 – IAM Policies
 
-The IAM Dashboard showed:
+Collected:
 
-`Roles: 26`
+`IAM → Policies`
 
 Finding:
 
-The account contained 26 IAM roles.
+The IAM environment contained five policies according to the IAM Dashboard.
 
-The presence of multiple roles was significant because the AWS Academy environment operates using temporary role-based access. The permission-denied event identified the active identity as an assumed AWSLabsUser role.
-
-This demonstrates the difference between IAM users and IAM roles:
-
-- IAM users generally represent long-term identities.
-- IAM roles provide temporary permissions that can be assumed by users, services, or other trusted identities.
-
----
-
-### Evidence 5 – IAM Policies
-
-The IAM Dashboard showed:
-
-`Policies: 5`
-
-The investigation then examined an available IAM policy:
+One of the reviewed policies was:
 
 `AccessAnalyzerServiceRolePolicy`
 
-The policy page contained the following sections:
-
-- Permissions
-- Entities attached
-- Policy versions (23)
-- Last Accessed
-
-Finding:
-
-The policy contained explicitly defined permissions controlling which AWS actions could be performed.
+The policy was examined to understand how IAM permissions are defined through specific AWS API actions.
 
 ---
 
-### Evidence 6 – AccessAnalyzerServiceRolePolicy
+### Evidence 5 – AccessAnalyzerServiceRolePolicy
 
-The permissions defined in the policy were reviewed.
+Collected:
 
-The policy contained:
+`IAM → Policies → AccessAnalyzerServiceRolePolicy`
 
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "AccessAnalyzerServiceRolePolicy",
-            "Effect": "Allow",
-            "Action": [
-                "dynamodb:GetResourcePolicy",
-                "dynamodb:ListStreams",
-                "dynamodb:ListTables",
-                "ec2:DescribeAddresses",
-                "ec2:DescribeByoipCidrs",
-                "ec2:DescribeSnapshotAttribute",
-                "ec2:DescribeSnapshots",
-                "ec2:DescribeVpcEndpoints",
-                "ec2:DescribeVpcs",
-                "ec2:GetSnapshotBlockPublicAccessState"
-            ]
-        }
-    ]
-}
+The Permissions section displayed the policy document.
+
+The reviewed policy contained permissions including:
+
+- `dynamodb:GetResourcePolicy`
+- `dynamodb:ListStreams`
+- `dynamodb:ListTables`
+- `ec2:DescribeAddresses`
+- `ec2:DescribeByoipCidrs`
+- `ec2:DescribeSnapshotAttribute`
+- `ec2:DescribeSnapshots`
+- `ec2:DescribeVpcEndpoints`
+- `ec2:DescribeVpcs`
+- `ec2:GetSnapshotBlockPublicAccessState`
+
+Finding:
+
+The policy demonstrated that IAM permissions are defined for specific AWS API actions and services.
+
+The presence of permissions for DynamoDB and EC2 does not automatically provide permission to perform CloudTrail operations.
+
+---
+
+### Evidence 6 – CloudTrail Access Failure
+
+Collected:
+
+`AccessDeniedException`
+
+The error stated that the current identity was not authorized to perform:
+
+`cloudtrail:LookupEvents`
+
+Finding:
+
+The CloudTrail lookup operation was denied by AWS IAM authorization controls.
+
+---
+
+### Evidence 7 – Requesting Identity
+
+Collected from the CloudTrail error:
+
+`arn:aws:sts::406126516422:assumed-role/AWSLabsUser-gZ1KBAe5vmFTZBEweyN4/903132b6-c217-447e-b246-04deaec270c6`
+
+Finding:
+
+The request was made through an assumed AWS Academy role:
+
+`AWSLabsUser-gZ1KBAe5vmFTZBEweyN4`
+
+This confirmed that the CloudTrail request was being evaluated against the permissions available to the active assumed role.
+
+---
+
+### Evidence 8 – Explicit Deny
+
+Collected from the CloudTrail error:
+
+`explicit deny in an identity-based policy`
+
+Policy identified:
+
+`arn:aws:iam::406126516422:policy/RegionPinningPolicy`
+
+Finding:
+
+The failure was not simply caused by a missing Allow statement.
+
+AWS identified an explicit deny in the identity-based policy `RegionPinningPolicy`.
+
+This was the primary reason the `cloudtrail:LookupEvents` operation was rejected.
+
+---
+
+## Permission Analysis
+
+The investigation demonstrated an important IAM concept: permissions are evaluated against the specific AWS API action being requested.
+
+The denied operation was:
+
+`cloudtrail:LookupEvents`
+
+The reviewed `AccessAnalyzerServiceRolePolicy` contained permissions for services such as DynamoDB and EC2, but those permissions did not grant access to the CloudTrail lookup operation.
+
+More importantly, the CloudTrail error explicitly identified a deny from:
+
+`RegionPinningPolicy`
+
+Therefore, the investigation identified the authorization failure as an IAM policy enforcement issue rather than a CloudTrail service failure.
+
+---
+
+## IAM Environment Analysis
+
+The IAM Dashboard provided an overview of the account's identity environment.
+
+The account contained:
+
+- 0 IAM users
+- 0 IAM user groups
+- 26 IAM roles
+- 5 IAM policies
+- 0 identity providers
+
+The absence of IAM users and groups was consistent with the restricted AWS Academy environment, where temporary assumed roles are commonly used for lab access.
+
+The active identity observed in the CloudTrail error was an assumed role rather than a traditional IAM user.
+
+---
+
+## Access Denial Analysis
+
+The access failure can be reconstructed as follows:
+
+1. The AWS Academy identity attempted to access CloudTrail Event History.
+2. AWS evaluated the requested API action.
+3. The requested action was `cloudtrail:LookupEvents`.
+4. The request was made through the `AWSLabsUser` assumed role.
+5. AWS identified an explicit deny.
+6. The deny was associated with `RegionPinningPolicy`.
+7. The CloudTrail lookup request was rejected.
+8. The IAM environment was reviewed to understand the authorization context.
+
+This demonstrates how an access-denied event can itself become useful evidence during a cloud security investigation.
+
+---
+
+## DFIR Analysis
+
+From a SOC perspective, the `AccessDeniedException` should not simply be treated as a technical error.
+
+The event provided several useful investigation artifacts:
+
+- AWS account ID
+- Requesting assumed role
+- Requested API action
+- Explicit deny condition
+- IAM policy responsible for the deny
+
+These details allow an analyst to determine why a cloud operation failed and whether the failure was caused by missing permissions, an explicit deny, or another IAM control.
+
+---
+
+## MITRE ATT&CK Mapping
+
+| Tactic | Technique | ID |
+|---|---|---|
+| Privilege Escalation | Valid Accounts | T1078 |
+| Defense Evasion | Impair Defenses | T1562 |
+| Discovery | Cloud Service Dashboard Discovery | T1526 |
+
+The primary focus of this lab was IAM authorization analysis rather than direct ATT&CK technique execution. The mapping provides contextual relevance for SOC investigations involving cloud identities and access controls.
+
+---
+
+## Analyst Observations
+
+- The AWS account contained 26 IAM roles but no IAM users.
+- No IAM user groups were configured.
+- The active CloudTrail request originated from an assumed `AWSLabsUser` role.
+- The denied operation was `cloudtrail:LookupEvents`.
+- AWS reported an explicit deny rather than simply a missing permission.
+- `RegionPinningPolicy` was identified as the policy responsible for the explicit deny.
+- IAM policies define permissions for specific AWS API actions.
+- An Allow statement for one AWS service does not automatically grant access to another service.
+- Permission-denied events can provide valuable evidence during cloud investigations.
+- Restricted AWS Academy environments may intentionally prevent administrative operations.
+
+---
+
+## Investigation Findings
+
+The investigation confirmed that the CloudTrail access failure was caused by IAM authorization controls.
+
+The AWS Academy assumed role attempted to perform `cloudtrail:LookupEvents`, but AWS rejected the request because of an explicit deny associated with `RegionPinningPolicy`.
+
+The IAM review also confirmed that the account contained no IAM users or user groups and instead relied heavily on IAM roles.
+
+---
+
+## Conclusion
+
+The investigation demonstrated how SOC analysts can use IAM information to understand cloud access failures. By correlating the CloudTrail `AccessDeniedException` with the active assumed role and the identified `RegionPinningPolicy`, the investigation established the reason for the denied operation and reinforced the importance of analyzing IAM identities, policies, and explicit denies during AWS security investigations.
