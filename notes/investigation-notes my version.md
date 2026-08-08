@@ -2,8 +2,7 @@
 
 ## Lab Summary
 
-
-The investigation examined the IAM Dashboard, IAM users, IAM user groups, IAM roles, IAM policies, and a permission-denied CloudTrail operation. The investigation also reviewed the permissions defined in the `AccessAnalyzerServiceRolePolicy` policy to understand how IAM policies control access to AWS services and actions.
+In this investigation , we examined the IAM Dashboard, IAM Users, IAM User Groups, available IAM policies, and the specific `AccessDeniedException` returned for the `cloudtrail:LookupEvents` operation.
 
 ---
 
@@ -11,13 +10,14 @@ The investigation examined the IAM Dashboard, IAM users, IAM user groups, IAM ro
 
 1. Open the AWS IAM console.
 2. Review the IAM Dashboard.
-3. Examine IAM users.
-4. Examine IAM user groups.
-5. Review available IAM roles and policies.
-6. Inspect an IAM policy and its permissions.
-7. Attempt to review CloudTrail event history.
-8. Analyze the resulting `AccessDeniedException`.
-9. Identify the policy responsible for the explicit deny.
+3. Examine IAM Users.
+4. Examine IAM User Groups.
+5. Review available IAM policies.
+6. Inspect the `AccessAnalyzerServiceRolePolicy`.
+7. Attempt to access CloudTrail Event History.
+8. Analyze the `AccessDeniedException`.
+9. Identify the requesting IAM role.
+10. Identify the denied AWS API action.
 
 ---
 
@@ -25,16 +25,24 @@ The investigation examined the IAM Dashboard, IAM users, IAM user groups, IAM ro
 
 An AWS identity has been granted more permissions than it actually needs. As a SOC analyst, our task is to identify the excessive permissions, determine what resources or actions they allow, understand the security impact, and recommend a safer permission model.
 
-
 ---
 
 ## Evidence Collected
 
 ### Evidence 1 – IAM Dashboard
 
-The IAM Dashboard displayed the resources available in the AWS account.
+Collected:
 
-Observed resources:
+- IAM Dashboard
+- Account resource information
+- IAM role count
+- IAM policy count
+- IAM user count
+- IAM user group count
+
+Finding:
+
+The IAM Dashboard showed:
 
 - User groups: 0
 - Users: 0
@@ -42,101 +50,107 @@ Observed resources:
 - Policies: 5
 - Identity providers: 0
 
-The dashboard also displayed the AWS account information and the available IAM Policy Simulator.
-
-Finding:
-
-The account contained no IAM users or user groups, while multiple IAM roles and policies were available. This indicates that the AWS Academy environment primarily relied on IAM roles for access.
+This indicated that the lab environment relied primarily on IAM roles rather than IAM users.
 
 ---
 
 ### Evidence 2 – IAM Users
 
-We went to IAM Users. 
+Collected:
 
-Observed result:
+`IAM → Users`
+
+Finding:
+
+The IAM Users page showed:
 
 `IAM users (0)`
 
-The page displayed:
+and:
 
 `No resources to display`
 
-The available columns included:
-
-- User name
-- Path
-- Groups
-- Last activity
-- MFA
-- Password age
-
-Finding:
-
-No IAM users were configured in the account.
-
---
+---
 
 ### Evidence 3 – IAM User Groups
 
-The IAM User Groups section was reviewed.
+Collected:
 
-Observed result:
+`IAM → User groups`
+
+Finding:
+
+The IAM User Groups page showed:
 
 `IAM user groups (0)`
 
-The page displayed:
+and:
 
 `No resources to display`
 
-The page also explained that an IAM user group is a collection of IAM users used to specify permissions for multiple users.
-
-Finding:
-
-No IAM user groups were configured.
-
-Because no IAM users were present, there were also no user groups available to centrally manage permissions for those users.
 
 ---
 
-### Evidence 4 – IAM Roles
+### Evidence 4 – IAM Policies
 
-The IAM Dashboard showed:
+Collected:
 
-`Roles: 26`
+`IAM → Policies`
 
 Finding:
 
-The account contained 26 IAM roles.
+The IAM environment contained five policies according to the IAM Dashboard.
 
-The presence of multiple roles was significant because the AWS Academy environment operates using temporary role-based access. The permission-denied event identified the active identity as an assumed AWSLabsUser role.
-
-This demonstrates the difference between IAM users and IAM roles:
-
-- IAM users generally represent long-term identities.
-- IAM roles provide temporary permissions that can be assumed by users, services, or other trusted identities.
-
----
-
-### Evidence 5 – IAM Policies
-
-The IAM Dashboard showed:
-
-`Policies: 5`
-
-The investigation then examined an available IAM policy:
+One of the reviewed policies was:
 
 `AccessAnalyzerServiceRolePolicy`
 
-The policy page contained the following sections:
+The policy was examined to understand how IAM permissions are defined through specific AWS API actions.
 
-- Permissions
-- Entities attached
-- Policy versions (23)
-- Last Accessed
+---
+
+---
+
+### Evidence 5 – CloudTrail Access Failure
+
+Collected:
+
+`AccessDeniedException`
+ The current identity was not authorized to perform:
+
+`cloudtrail:LookupEvents`
 
 Finding:
 
-The policy contained explicitly defined permissions controlling which AWS actions could be performed.
+The CloudTrail lookup operation was denied by AWS IAM authorization controls.
 
 ---
+
+### Evidence 7 – Requesting Identity
+
+Collected from the CloudTrail error:
+
+`arn:aws:sts::406126516422:assumed-role/AWSLabsUser-gZ1KBAe5vmFTZBEweyN4/903132b6-c217-447e-b246-04deaec270c6`
+
+Finding:
+
+The request was made through an assumed AWS Academy role:
+
+`AWSLabsUser-gZ1KBAe5vmFTZBEweyN4`
+
+This confirmed that the CloudTrail request was being evaluated against the permissions available to the active assumed role.
+
+---
+
+## MITRE ATT&CK Mapping
+
+| Tactic | Technique | ID |
+|---|---|---|
+| Privilege Escalation | Valid Accounts | T1078 |
+| Defense Evasion | Impair Defenses | T1562 |
+| Discovery | Cloud Service Dashboard Discovery | T1526 |
+
+The primary focus of this lab was IAM authorization analysis rather than direct ATT&CK technique execution. The mapping provides contextual relevance for SOC investigations involving cloud identities and access controls.
+
+---
+
