@@ -1,4 +1,5 @@
 # aws-iam-misconfiguration-investigation
+
 ## Overview
 
 AWS Identity and Access Management (IAM) controls who can access AWS and what they are allowed to do.
@@ -65,19 +66,29 @@ Modify security controls
         ↓
 Create persistence / escalate privileges
 
+This is why IAM configuration is an important cloud security and SOC investigation area.
+
 In this hands-on cloud security investigation, an AWS API operation failed because the active AWS Academy identity was explicitly denied permission by an identity-based policy. The investigation then examined the IAM environment, including users, user groups, roles, and policies, to understand the permission model and identify the policy responsible for the access denial.
 
 ---
 
 # Executive Summary
 
-AWS SOC investigation lab focused on identifying excessive IAM permissions, analyzing policy configurations, evaluating privilege risks, and documenting least-privilege security recommendations.
+Hands-on AWS SOC investigation lab focused on identifying excessive IAM permissions, analyzing policy configurations, evaluating privilege risks, and documenting least-privilege security recommendations.
 
 ---
 
 # Investigation Objectives
 
-An AWS identity has been granted more permissions than it actually needs. As a SOC analyst, our task is to identify the excessive permissions, determine what resources or actions they allow, understand the security impact, and recommend a safer permission model.
+- Understand AWS IAM and permission evaluation.
+- Identify the cause of an AWS `AccessDeniedException`.
+- Determine which identity attempted the denied operation.
+- Identify the denied AWS API action.
+- Identify the policy responsible for the denial.
+- Review IAM users and user groups.
+- Review IAM roles and policies.
+- Examine an IAM policy document.
+
 
 ---
 
@@ -103,7 +114,7 @@ An AWS identity has been granted more permissions than it actually needs. As a S
 | Primary Service | AWS IAM |
 | Related Service | AWS CloudTrail |
 | Account ID | 406126516422 |
-| Active Identity | AWSLabsUser role |
+| Active Identity | AWSLabsUser assumed role |
 | Primary Artifact | RegionPinningPolicy |
 | Investigation Focus | Explicit IAM Policy Deny |
 
@@ -126,6 +137,78 @@ An AWS identity has been granted more permissions than it actually needs. As a S
 
 # Investigation Scenario
 
+
 An AWS identity has been granted more permissions than it actually needs. As a SOC analyst, our task is to identify the excessive permissions, determine what resources or actions they allow, understand the security impact, and recommend a safer permission model.
 
 ---
+
+
+
+
+# SOC Analyst Perspective
+
+When investigating a suspicious AWS identity, don't look only at the username.
+
+Correlate:
+
+Identity
+Attached policies
+Group membership
+Role permissions
+Access keys
+MFA configuration
+Recent CloudTrail activity
+Resources accessed
+IAM changes performed by the identity
+
+For example:
+
+CloudTrail:
+AWSLabsUser performed an unexpected s3:GetObject.
+
+The next question is:
+
+Was this user actually supposed to have S3 access?
+
+IAM answers that question.
+
+---
+
+# Evidence Correlation
+
+The investigation correlated the AWS access-denied message with the IAM environment.
+
+The access-denied error identified:
+
+- AWSLabsUser assumed role
+- `cloudtrail:LookupEvents`
+- Explicit identity-based policy deny
+- `RegionPinningPolicy`
+
+The IAM Dashboard showed:
+
+- 0 IAM users
+- 0 IAM user groups
+- 26 IAM roles
+- 5 IAM policies
+
+The IAM Users and User Groups pages confirmed that no traditional IAM users or groups were present.
+
+The policy investigation demonstrated how IAM policy documents define permissions through structured statements containing fields such as `Effect` and `Action`.
+
+Together, these artifacts provided sufficient evidence to understand the permission failure without assuming that the AWS service itself was malfunctioning.
+
+---
+
+# MITRE ATT&CK Mapping
+
+| Tactic | Technique | ID |
+|--------|-----------|----|
+| Discovery | Cloud Service Dashboard | T1526 |
+| Discovery | Account Discovery | T1087 |
+| Discovery | Cloud Account | T1087.004 |
+
+The mappings represent the cloud identity and discovery activities examined during the investigation. They do not by themselves indicate malicious activity.
+
+---
+
